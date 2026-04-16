@@ -1,11 +1,8 @@
-def algo_dfs(G, source, target):
-    """
-    Note: DFS is not a shortest-path algorithm
-    :param G:
-    :param source:
-    :param target:
-    :return:
-    """
+from helpers import reconstruct
+
+
+def algo_dfs(G, source, target, weight='length'):
+    """DFS is not a shortest-path algorithm. It finds *a* path, often much longer than optimal."""
     visited_order = []
     prev = {source: None}
     stack = [source]
@@ -24,10 +21,4 @@ def algo_dfs(G, source, target):
                 stack.append(v)
     if not found:
         return visited_order, []
-    path = []
-    cur = target
-    while cur is not None:
-        path.append(cur)
-        cur = prev.get(cur)
-    path.reverse()
-    return visited_order, path
+    return visited_order, reconstruct(prev, source, target)

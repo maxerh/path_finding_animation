@@ -1,34 +1,27 @@
 import math
 import heapq
+from helpers import reconstruct
 
 
-def algo_dijkstra(G, source, target):
+def algo_dijkstra(G, source, target, weight='length'):
     dist = {source: 0}
     prev = {source: None}
     visited = []
+    seen = set()
     pq = [(0, source)]
     while pq:
         d, u = heapq.heappop(pq)
-        if u in [v for v, _ in visited]:
+        if u in seen:
             continue
+        seen.add(u)
         visited.append((u, d))
         if u == target:
             break
         for _, v, data in G.edges(u, data=True):
-            w = data.get("length", 1)
+            w = data.get(weight, 1)
             nd = d + w
             if nd < dist.get(v, math.inf):
                 dist[v] = nd
                 prev[v] = u
                 heapq.heappush(pq, (nd, v))
-    # Reconstruct path
-    path = []
-    cur = target
-    while cur is not None:
-        path.append(cur)
-        cur = prev.get(cur)
-    path.reverse()
-    if path[0] != source:
-        return visited, []
-    return visited, path
-
+    return visited, reconstruct(prev, source, target)

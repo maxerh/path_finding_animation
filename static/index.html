@@ -277,6 +277,32 @@
   }
 
   .leaflet-container { background: #0a0c10; }
+
+  /* Weight toggle */
+  .toggle-row {
+    display: flex;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .toggle-opt {
+    flex: 1;
+    padding: 9px 8px;
+    text-align: center;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .toggle-opt:hover { color: var(--text); }
+  .toggle-opt.selected {
+    background: var(--accent);
+    color: #000;
+    font-weight: 700;
+  }
 </style>
 </head>
 <body>
@@ -343,6 +369,17 @@
   </div>
 
   <div class="section">
+    <div class="section-label">Optimize for</div>
+    <div class="toggle-row">
+      <div class="toggle-opt selected" data-weight="length">Distance</div>
+      <div class="toggle-opt" data-weight="travel_time">Time</div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5" id="weight-hint">
+      Shortest path by road distance (metres).
+    </div>
+  </div>
+
+  <div class="section">
     <div class="section-label">Animation Speed</div>
     <div class="slider-row">
       <span style="font-size:11px;color:var(--muted)">slow</span>
@@ -366,15 +403,15 @@
       </div>
       <div class="stat-box">
         <div class="val" id="stat-dist">-</div>
-        <div class="lbl">Path length</div>
+        <div class="lbl">Distance</div>
+      </div>
+      <div class="stat-box">
+        <div class="val" id="stat-time">-</div>
+        <div class="lbl">Est. travel time</div>
       </div>
       <div class="stat-box">
         <div class="val" id="stat-path">-</div>
         <div class="lbl">Path nodes</div>
-      </div>
-      <div class="stat-box">
-        <div class="val" id="stat-graph">-</div>
-        <div class="lbl">Graph nodes</div>
       </div>
     </div>
   </div>
@@ -400,6 +437,7 @@ const state = {
   end: null,
   clickPhase: 'start',  // 'start' | 'end'
   algorithm: 'dijkstra',
+  weight: 'length',     // 'length' or 'travel_time'
   animating: false,
   animTimer: null,
 };
@@ -457,6 +495,17 @@ function fmtDist(m) {
   return m >= 1000 ? (m/1000).toFixed(2)+'km' : m+'m';
 }
 
+function fmtTime(s) {
+  if (s <= 0) return '-';
+  if (s < 60) return s + 's';
+  const m = Math.floor(s / 60);
+  const rem = Math.round(s % 60);
+  if (m < 60) return rem > 0 ? `${m}m ${rem}s` : `${m}m`;
+  const h = Math.floor(m / 60);
+  const remM = m % 60;
+  return remM > 0 ? `${h}h ${remM}m` : `${h}h`;
+}
+
 function updateRunBtn() {
   document.getElementById('run-btn').disabled = !(state.start && state.end && !state.animating);
 }
@@ -482,6 +531,19 @@ document.querySelectorAll('.algo-btn').forEach(btn => {
       document.getElementById('warning-algo-name').textContent =
         btn.textContent.replace('!','').trim();
     }
+  });
+});
+
+// ---- Weight toggle ----
+document.querySelectorAll('.toggle-opt').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.toggle-opt').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    state.weight = btn.dataset.weight;
+    const hint = document.getElementById('weight-hint');
+    hint.textContent = state.weight === 'length'
+      ? 'Shortest path by road distance (metres).'
+      : 'Fastest path by estimated travel time (uses speed limits).';
   });
 });
 
@@ -579,6 +641,7 @@ async function runPathfinding() {
       end_lat: state.end.lat,
       end_lng: state.end.lng,
       algorithm: state.algorithm,
+      weight: state.weight,
       place: state.place || "",
     };
 
@@ -622,12 +685,13 @@ async function runPathfinding() {
     setStatus('Animating exploration...', 'loading');
     animate(data, () => {
       setProgress(100);
-      const suffix = data.non_shortest ? ' (not shortest)' : '';
-      setStatus(`Done: ${data.nodes_explored.toLocaleString()} nodes explored, ${fmtDist(data.path_length_m)}${suffix}`, 'success');
+      const suffix = data.non_shortest ? ' (not shortest by distance)' : '';
+      const optimized = data.weight === 'travel_time' ? `fastest: ${fmtTime(data.travel_time_s)}` : `shortest: ${fmtDist(data.path_length_m)}`;
+      setStatus(`Done - ${optimized}, ${data.nodes_explored.toLocaleString()} nodes explored${suffix}`, 'success');
       document.getElementById('stat-nodes').textContent = data.nodes_explored.toLocaleString();
       document.getElementById('stat-dist').textContent = fmtDist(data.path_length_m);
+      document.getElementById('stat-time').textContent = fmtTime(data.travel_time_s);
       document.getElementById('stat-path').textContent = data.path_nodes;
-      document.getElementById('stat-graph').textContent = data.graph_nodes.toLocaleString();
       document.getElementById('stats-section').style.display = 'block';
       setTimeout(() => setProgress(0), 800);
       // Re-enable interaction - user can now click to reposition or hit Run again

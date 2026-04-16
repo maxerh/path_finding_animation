@@ -108,6 +108,7 @@ class PathRequest(BaseModel):
     end_lat: float
     end_lng: float
     algorithm: str
+    weight: str = "length"  # "length" (metres) or "travel_time" (seconds)
     place: str = ""  # optional hint; reused if covers both points
 
 
@@ -153,8 +154,9 @@ def find_path(req: PathRequest):
     if source == target:
         raise HTTPException(status_code=400, detail="Start and end snap to the same node - pick points further apart")
 
+    weight = req.weight if req.weight in ("length", "travel_time") else "length"
     algo_fn = ALGORITHMS[req.algorithm]
-    visited, path = algo_fn(G, source, target)
+    visited, path = algo_fn(G, source, target, weight)
 
     step_sample = max(1, len(visited) // 600)
     steps = [
@@ -164,7 +166,8 @@ def find_path(req: PathRequest):
     ]
 
     polyline = path_edges(G, path)
-    length_m = path_length(G, path)
+    length_m = path_length(G, path, "length")
+    travel_time_s = path_length(G, path, "travel_time")
     b = graph_bounds[key]
 
     return {
@@ -172,12 +175,14 @@ def find_path(req: PathRequest):
         "path": polyline,
         "nodes_explored": len(visited),
         "path_length_m": length_m,
+        "travel_time_s": travel_time_s,
         "path_nodes": len(path),
         "snapped_start": {"lat": src_lat, "lng": src_lng},
         "snapped_end": {"lat": tgt_lat, "lng": tgt_lng},
         "graph_nodes": G.number_of_nodes(),
         "graph_edges": G.number_of_edges(),
         "non_shortest": req.algorithm in NON_SHORTEST,
+        "weight": weight,
         "bounds": {"min_lat": b[0], "max_lat": b[1], "min_lng": b[2], "max_lng": b[3]},
     }
 

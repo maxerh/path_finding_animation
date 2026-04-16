@@ -1,6 +1,8 @@
 from collections import deque
+from helpers import reconstruct
 
-def algo_bfs(G, source, target):
+
+def algo_bfs(G, source, target, weight='length'):
     visited = []
     prev = {source: None}
     queue = deque([source])
@@ -15,12 +17,4 @@ def algo_bfs(G, source, target):
                 seen.add(v)
                 prev[v] = u
                 queue.append(v)
-    path = []
-    cur = target
-    while cur is not None:
-        path.append(cur)
-        cur = prev.get(cur)
-    path.reverse()
-    if path[0] != source:
-        return visited, []
-    return visited, path
+    return visited, reconstruct(prev, source, target)

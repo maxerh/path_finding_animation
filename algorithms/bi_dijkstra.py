@@ -1,7 +1,8 @@
 import math
 import heapq
 
-def algo_bidirectional_dijkstra(G, source, target):
+
+def algo_bidirectional_dijkstra(G, source, target, weight='length'):
     """
     Expands from source and target simultaneously over forward and reversed edges.
     Terminates when the sum of the two frontier distances exceeds the best known path.
@@ -46,7 +47,7 @@ def algo_bidirectional_dijkstra(G, source, target):
             visited.append((u, d))
             update_best(u)
             for _, v, data in G.edges(u, data=True):
-                w = data.get("length", 1)
+                w = data.get(weight, 1)
                 nd = d + w
                 if nd < dist_f.get(v, math.inf):
                     dist_f[v] = nd
@@ -61,7 +62,7 @@ def algo_bidirectional_dijkstra(G, source, target):
             visited.append((u, d))
             update_best(u)
             for p, _, data in G.in_edges(u, data=True):
-                w = data.get("length", 1)
+                w = data.get(weight, 1)
                 nd = d + w
                 if nd < dist_b.get(p, math.inf):
                     dist_b[p] = nd

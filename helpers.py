@@ -1,8 +1,6 @@
 import math
 
 
-
-
 def node_coords(G, node_id):
     d = G.nodes[node_id]
     return d["y"], d["x"]
@@ -35,12 +33,12 @@ def haversine(G, u, v):
     return 6371000 * 2 * math.asin(math.sqrt(a))
 
 
-def path_length(G, path):
+def path_length(G, path, weight='length'):
     total = 0
     for i in range(len(path) - 1):
         data = G.get_edge_data(path[i], path[i + 1])
         if data:
-            total += list(data.values())[0].get("length", 0)
+            total += list(data.values())[0].get(weight, 0)
     return round(total)
 
 
