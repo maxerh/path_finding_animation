@@ -1,0 +1,18 @@
+# Path finding animation
+
+This project visualizes the shortest path between two selected points on a map. The path finding process is animated.
+
+## Path finding algorithms
+- A*
+- Dijkstra
+- Bellman-Ford
+- BFS
+- DFS
+
+## Getting started
+
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+Open Browser at http://localhost:8000

@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pathfinder</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --panel: #13161e;
+    --border: #1e2330;
+    --accent: #00e5ff;
+    --accent2: #ff4d6d;
+    --accent3: #aaff00;
+    --warn: #ffb347;
+    --text: #e8eaf0;
+    --muted: #5a6070;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    height: 100vh;
+    display: flex;
+    overflow: hidden;
+  }
+
+  #sidebar {
+    width: 320px;
+    min-width: 320px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    overflow-y: auto;
+  }
+
+  #logo {
+    padding: 22px 20px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  #logo h1 {
+    font-family: 'Space Mono', monospace;
+    font-size: 20px;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+  }
+
+  #logo p { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  .section {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  .input-row { display: flex; gap: 8px; }
+
+  input[type="text"] {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    border-radius: 6px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+
+  button {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 9px 14px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    white-space: nowrap;
+  }
+  button:hover { opacity: 0.85; }
+  button:active { transform: scale(0.97); }
+  button:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+  button.secondary { background: var(--border); color: var(--text); }
+
+  /* Waypoints */
+  .coord-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+  }
+  .coord-dot {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .coord-dot.start { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); }
+  .coord-dot.end   { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+  .coord-label { font-size: 12px; color: var(--muted); flex: 1; }
+  .coord-val { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--text); }
+  .coord-snapped { font-size: 10px; color: var(--accent); display: none; margin-top: 1px; }
+
+  /* Phase indicator */
+  #phase-indicator {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+  .phase-step {
+    flex: 1;
+    height: 3px;
+    border-radius: 2px;
+    background: var(--border);
+    transition: background 0.3s;
+  }
+  .phase-step.active { background: var(--accent3); }
+  .phase-step.done { background: var(--accent); }
+
+  /* Algorithm grid */
+  .algo-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .algo-btn {
+    background: var(--bg);
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 9px 8px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+    position: relative;
+  }
+  .algo-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .algo-btn.selected { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+  .algo-btn .non-shortest-badge {
+    position: absolute;
+    top: 3px; right: 4px;
+    font-size: 8px;
+    color: var(--warn);
+    display: none;
+  }
+  .algo-btn[data-non-shortest] .non-shortest-badge { display: block; }
+  .algo-btn[data-non-shortest].selected .non-shortest-badge { color: #664400; }
+
+  /* Warning banner */
+  #non-shortest-warning {
+    display: none;
+    background: rgba(255,179,71,0.12);
+    border: 1px solid rgba(255,179,71,0.4);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--warn);
+    margin-top: 8px;
+    line-height: 1.5;
+  }
+
+  /* Speed slider */
+  .slider-row { display: flex; align-items: center; gap: 10px; }
+  input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+  .slider-val { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent); width: 28px; text-align: right; }
+
+  /* Run/Reset */
+  #run-btn { width: 100%; padding: 14px; font-size: 14px; letter-spacing: 1px; border-radius: 8px; }
+  #reset-btn { width: 100%; padding: 9px; font-size: 12px; margin-top: 8px; }
+
+  /* Stats */
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stat-box { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
+  .stat-box .val { font-family: 'Space Mono', monospace; font-size: 18px; color: var(--accent); font-weight: 700; }
+  .stat-box .lbl { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: 1px; }
+
+  /* Status */
+  #status {
+    padding: 10px 20px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    border-top: 1px solid var(--border);
+    margin-top: auto;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  #status.loading .dot { background: var(--accent); animation: pulse 1s infinite; }
+  #status.success .dot { background: var(--accent3); }
+  #status.error .dot { background: var(--accent2); }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  /* Progress bar */
+  #progress-bar {
+    height: 3px;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.15s;
+    position: absolute;
+    top: 0; left: 0;
+    z-index: 600;
+  }
+
+  /* Map */
+  #map { flex: 1; position: relative; }
+
+  #map-overlay {
+    position: absolute;
+    top: 14px; right: 14px;
+    z-index: 500;
+    background: rgba(19,22,30,0.92);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--muted);
+    pointer-events: none;
+    max-width: 260px;
+  }
+  #map-overlay.active { color: var(--text); }
+
+  #instruction {
+    position: absolute;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 500;
+    background: rgba(13,15,20,0.92);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 18px;
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    pointer-events: none;
+    white-space: nowrap;
+  }
+
+  .leaflet-container { background: #0a0c10; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <div id="logo">
+    <h1>PATHFINDER</h1>
+    <p>Real street graph traversal visualizer</p>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Area (optional)</div>
+    <div class="input-row">
+      <input type="text" id="place-input" placeholder="e.g. Munich, Germany"/>
+      <button id="load-btn">Load</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5">
+      Or skip this - just click the map and hit Run. The area will be auto-downloaded.
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Waypoints</div>
+    <div class="coord-row">
+      <div class="coord-dot start"></div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span class="coord-label">Start</span>
+          <span class="coord-val" id="start-coord">click map</span>
+        </div>
+        <div class="coord-snapped" id="start-snapped">snapped to nearest node</div>
+      </div>
+    </div>
+    <div class="coord-row">
+      <div class="coord-dot end"></div>
+      <div style="flex:1">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <span class="coord-label">End</span>
+          <span class="coord-val" id="end-coord">click map</span>
+        </div>
+        <div class="coord-snapped" id="end-snapped">snapped to nearest node</div>
+      </div>
+    </div>
+    <div id="phase-indicator">
+      <div class="phase-step" id="phase-1"></div>
+      <div class="phase-step" id="phase-2"></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Algorithm</div>
+    <div class="algo-grid">
+      <div class="algo-btn selected" data-algo="dijkstra">Dijkstra</div>
+      <div class="algo-btn" data-algo="bidirectional_dijkstra">Bi-Dijkstra</div>
+      <div class="algo-btn" data-algo="astar">A*</div>
+      <div class="algo-btn" data-algo="bellman_ford">Bellman-Ford</div>
+      <div class="algo-btn" data-algo="bfs" data-non-shortest="1">BFS<span class="non-shortest-badge">!</span></div>
+      <div class="algo-btn" data-algo="dfs" data-non-shortest="1">DFS<span class="non-shortest-badge">!</span></div>
+    </div>
+    <div id="non-shortest-warning">
+      <strong>!</strong> <span id="warning-algo-name">DFS</span> does not find the shortest path by distance.
+      It finds <em>a</em> path via graph traversal order, which can be many times longer than optimal.
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Animation Speed</div>
+    <div class="slider-row">
+      <span style="font-size:11px;color:var(--muted)">slow</span>
+      <input type="range" id="speed-slider" min="1" max="10" value="5">
+      <span style="font-size:11px;color:var(--muted)">fast</span>
+      <span class="slider-val" id="speed-val">5</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <button id="run-btn" disabled>RUN</button>
+    <button class="secondary" id="reset-btn">Reset</button>
+  </div>
+
+  <div class="section" id="stats-section" style="display:none">
+    <div class="section-label">Results</div>
+    <div class="stat-grid">
+      <div class="stat-box">
+        <div class="val" id="stat-nodes">-</div>
+        <div class="lbl">Nodes explored</div>
+      </div>
+      <div class="stat-box">
+        <div class="val" id="stat-dist">-</div>
+        <div class="lbl">Path length</div>
+      </div>
+      <div class="stat-box">
+        <div class="val" id="stat-path">-</div>
+        <div class="lbl">Path nodes</div>
+      </div>
+      <div class="stat-box">
+        <div class="val" id="stat-graph">-</div>
+        <div class="lbl">Graph nodes</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="status">
+    <div class="dot"></div>
+    <span id="status-text">Click on map to set start and end points, then Run</span>
+  </div>
+</div>
+
+<div id="map">
+  <div id="progress-bar"></div>
+  <div id="map-overlay">Click anywhere on the map to begin</div>
+  <div id="instruction">Click to set START point</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ---- State ----
+const state = {
+  place: null,          // loaded place name (optional)
+  start: null,          // {lat, lng} raw click
+  end: null,
+  clickPhase: 'start',  // 'start' | 'end'
+  algorithm: 'dijkstra',
+  animating: false,
+  animTimer: null,
+};
+
+// ---- Map: default to Munich ----
+const map = L.map('map', { center: [48.1351, 11.5820], zoom: 13, zoomControl: true });
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; OpenStreetMap &copy; CartoDB',
+  maxZoom: 19,
+}).addTo(map);
+
+const exploredLayer = L.layerGroup().addTo(map);
+const pathLayer     = L.layerGroup().addTo(map);
+const markerLayer   = L.layerGroup().addTo(map);
+
+function makeIcon(color, glow) {
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:14px;height:14px;background:${color};border-radius:50%;border:2px solid #fff;box-shadow:0 0 8px ${glow}"></div>`,
+    iconSize: [14,14], iconAnchor: [7,7],
+  });
+}
+const startIcon = makeIcon('#aaff00', '#aaff00');
+const endIcon   = makeIcon('#ff4d6d', '#ff4d6d');
+
+let startMarker = null, endMarker = null;
+
+// ---- UI helpers ----
+function setStatus(msg, cls='') {
+  const el = document.getElementById('status');
+  el.className = cls;
+  el.innerHTML = `<div class="dot"></div><span>${msg}</span>`;
+}
+
+function setInstruction(msg) {
+  document.getElementById('instruction').textContent = msg;
+}
+
+function setOverlay(msg, active=false) {
+  const el = document.getElementById('map-overlay');
+  el.textContent = msg;
+  el.classList.toggle('active', active);
+}
+
+function setProgress(pct) {
+  document.getElementById('progress-bar').style.width = pct + '%';
+}
+
+function fmtCoord(latlng) {
+  return `${latlng.lat.toFixed(4)},${latlng.lng.toFixed(4)}`;
+}
+
+function fmtDist(m) {
+  return m >= 1000 ? (m/1000).toFixed(2)+'km' : m+'m';
+}
+
+function updateRunBtn() {
+  document.getElementById('run-btn').disabled = !(state.start && state.end && !state.animating);
+}
+
+function updatePhase() {
+  const p1 = document.getElementById('phase-1');
+  const p2 = document.getElementById('phase-2');
+  if (!state.start && !state.end) { p1.className='phase-step'; p2.className='phase-step'; }
+  else if (state.start && !state.end) { p1.className='phase-step active'; p2.className='phase-step'; }
+  else { p1.className='phase-step done'; p2.className='phase-step active'; }
+}
+
+// ---- Algorithm buttons ----
+document.querySelectorAll('.algo-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.algo-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    state.algorithm = btn.dataset.algo;
+    const isNonShortest = !!btn.dataset.nonShortest;
+    const warn = document.getElementById('non-shortest-warning');
+    warn.style.display = isNonShortest ? 'block' : 'none';
+    if (isNonShortest) {
+      document.getElementById('warning-algo-name').textContent =
+        btn.textContent.replace('!','').trim();
+    }
+  });
+});
+
+// ---- Speed slider ----
+const speedSlider = document.getElementById('speed-slider');
+speedSlider.addEventListener('input', () => {
+  document.getElementById('speed-val').textContent = speedSlider.value;
+});
+function getDelay() {
+  const v = parseInt(speedSlider.value);
+  return Math.max(5, Math.round(250 / (v * 1.6)));
+}
+
+// ---- Load area (optional, manual) ----
+document.getElementById('load-btn').addEventListener('click', async () => {
+  const place = document.getElementById('place-input').value.trim();
+  if (!place) return;
+  setStatus('Loading area...', 'loading');
+  document.getElementById('load-btn').disabled = true;
+  try {
+    const res = await fetch('/api/load', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({place}),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+    state.place = place;
+    const b = data.bounds;
+    map.fitBounds([[b.min_lat,b.min_lng],[b.max_lat,b.max_lng]]);
+    setOverlay(`${place}: ${data.nodes.toLocaleString()} nodes`, true);
+    setStatus(`Loaded ${place}`, 'success');
+  } catch(e) {
+    setStatus('Error: '+e.message, 'error');
+  }
+  document.getElementById('load-btn').disabled = false;
+});
+
+document.getElementById('place-input').addEventListener('keydown', e => {
+  if (e.key==='Enter') document.getElementById('load-btn').click();
+});
+
+// ---- Map click: set waypoints ----
+// Clicking always alternates start/end. After both are set, further clicks
+// reposition whichever is next in the cycle and clear old visualization.
+map.on('click', e => {
+  if (state.animating) return;
+
+  if (state.clickPhase === 'start') {
+    state.start = e.latlng;
+    document.getElementById('start-coord').textContent = fmtCoord(e.latlng);
+    document.getElementById('start-snapped').style.display = 'none';
+    if (startMarker) markerLayer.removeLayer(startMarker);
+    startMarker = L.marker(e.latlng, {icon: startIcon}).addTo(markerLayer);
+    if (state.end) {
+      // Both points exist - clear old result and stay ready to run
+      clearVisualization();
+      document.getElementById('stats-section').style.display = 'none';
+      setInstruction('Start moved - hit RUN, or click to move end');
+    } else {
+      state.clickPhase = 'end';
+      setInstruction('Now click to set END point');
+    }
+  } else {
+    state.end = e.latlng;
+    document.getElementById('end-coord').textContent = fmtCoord(e.latlng);
+    document.getElementById('end-snapped').style.display = 'none';
+    if (endMarker) markerLayer.removeLayer(endMarker);
+    endMarker = L.marker(e.latlng, {icon: endIcon}).addTo(markerLayer);
+    clearVisualization();
+    document.getElementById('stats-section').style.display = 'none';
+    state.clickPhase = 'start';
+    setInstruction('Ready - hit RUN, or click to move start');
+  }
+  updatePhase();
+  updateRunBtn();
+});
+
+// ---- Run ----
+document.getElementById('run-btn').addEventListener('click', runPathfinding);
+
+async function runPathfinding() {
+  if (state.animating) return;
+  clearVisualization();
+  document.getElementById('stats-section').style.display = 'none';
+  setStatus('Fetching street graph...', 'loading');
+  setProgress(5);
+  state.animating = true;
+  document.getElementById('run-btn').disabled = true;
+
+  try {
+    const body = {
+      start_lat: state.start.lat,
+      start_lng: state.start.lng,
+      end_lat: state.end.lat,
+      end_lng: state.end.lng,
+      algorithm: state.algorithm,
+      place: state.place || "",
+    };
+
+    const res = await fetch('/api/path', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed');
+
+    setProgress(35);
+
+    // Update overlay with graph info
+    setOverlay(`Graph: ${data.graph_nodes.toLocaleString()} nodes, ${data.graph_edges.toLocaleString()} edges`, true);
+
+    // Snap markers to nearest graph nodes
+    if (data.snapped_start) {
+      const s = data.snapped_start;
+      if (startMarker) markerLayer.removeLayer(startMarker);
+      startMarker = L.marker([s.lat, s.lng], {icon: startIcon}).addTo(markerLayer);
+      document.getElementById('start-coord').textContent = `${s.lat.toFixed(4)},${s.lng.toFixed(4)}`;
+      document.getElementById('start-snapped').style.display = 'block';
+    }
+    if (data.snapped_end) {
+      const e = data.snapped_end;
+      if (endMarker) markerLayer.removeLayer(endMarker);
+      endMarker = L.marker([e.lat, e.lng], {icon: endIcon}).addTo(markerLayer);
+      document.getElementById('end-coord').textContent = `${e.lat.toFixed(4)},${e.lng.toFixed(4)}`;
+      document.getElementById('end-snapped').style.display = 'block';
+    }
+
+    if (!data.steps.length && !data.path.length) {
+      setStatus('No path found between these points', 'error');
+      setProgress(0);
+      state.animating = false;
+      updateRunBtn();
+      return;
+    }
+
+    setStatus('Animating exploration...', 'loading');
+    animate(data, () => {
+      setProgress(100);
+      const suffix = data.non_shortest ? ' (not shortest)' : '';
+      setStatus(`Done: ${data.nodes_explored.toLocaleString()} nodes explored, ${fmtDist(data.path_length_m)}${suffix}`, 'success');
+      document.getElementById('stat-nodes').textContent = data.nodes_explored.toLocaleString();
+      document.getElementById('stat-dist').textContent = fmtDist(data.path_length_m);
+      document.getElementById('stat-path').textContent = data.path_nodes;
+      document.getElementById('stat-graph').textContent = data.graph_nodes.toLocaleString();
+      document.getElementById('stats-section').style.display = 'block';
+      setTimeout(() => setProgress(0), 800);
+      // Re-enable interaction - user can now click to reposition or hit Run again
+      setInstruction('Done - click to move start, or hit RUN again');
+      updateRunBtn();
+    });
+
+  } catch(e) {
+    setStatus('Error: '+e.message, 'error');
+    setProgress(0);
+    state.animating = false;
+    updateRunBtn();
+  }
+}
+
+function animate(data, onDone) {
+  let i = 0;
+  const steps = data.steps;
+  const total = steps.length;
+  const circles = [];
+
+  function step() {
+    if (i >= total) {
+      // Draw final path
+      if (data.path.length > 0) {
+        L.polyline(data.path.map(p => [p[0], p[1]]), {
+          color: '#00e5ff', weight: 4, opacity: 0.95, smoothFactor: 1,
+        }).addTo(pathLayer);
+      }
+      state.animating = false;
+      onDone();
+      return;
+    }
+
+    const pt = steps[i];
+    const c = L.circleMarker([pt.lat, pt.lng], {
+      radius: 3, color: '#ff9f43', fillColor: '#ff9f43',
+      fillOpacity: 0.65, weight: 0,
+    }).addTo(exploredLayer);
+    circles.push(c);
+
+    // Fade older nodes
+    if (circles.length > 100) {
+      circles[circles.length - 100].setStyle({fillOpacity: 0.12, opacity: 0.08});
+    }
+
+    i++;
+    setProgress(35 + Math.round((i/total) * 60));
+    state.animTimer = setTimeout(step, getDelay());
+  }
+  step();
+}
+
+function clearVisualization() {
+  if (state.animTimer) clearTimeout(state.animTimer);
+  exploredLayer.clearLayers();
+  pathLayer.clearLayers();
+}
+
+// ---- Reset ----
+document.getElementById('reset-btn').addEventListener('click', () => {
+  clearVisualization();
+  markerLayer.clearLayers();
+  startMarker = null; endMarker = null;
+  state.start = null; state.end = null;
+  state.animating = false;
+  state.clickPhase = 'start';
+  document.getElementById('start-coord').textContent = 'click map';
+  document.getElementById('end-coord').textContent = 'click map';
+  document.getElementById('start-snapped').style.display = 'none';
+  document.getElementById('end-snapped').style.display = 'none';
+  document.getElementById('stats-section').style.display = 'none';
+  setInstruction('Click to set START point');
+  setStatus('Click on map to set start and end points, then Run');
+  updatePhase();
+  updateRunBtn();
+});
+</script>
+</body>
+</html>
