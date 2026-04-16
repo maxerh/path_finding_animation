@@ -5,12 +5,21 @@ This project visualizes the shortest path between two selected points on a map. 
 ## Path finding algorithms
 - A*
 - Dijkstra
+- Bidirectional Dijkstra
 - Bellman-Ford
 - BFS
 - DFS
 
 ## Getting started
 
+Setting up environment
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+Start app
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
