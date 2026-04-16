@@ -20,6 +20,7 @@ app = FastAPI()
 # Cache: place_name -> G
 graph_cache: dict[str, nx.MultiDiGraph] = {}
 graph_bounds: dict[str, tuple] = {}
+graph_max_speed_ms: dict[str, float] = {}   # key -> max speed in m/s
 
 
 def _store_graph(key: str, G: nx.MultiDiGraph):
@@ -156,7 +157,12 @@ def find_path(req: PathRequest):
 
     weight = req.weight if req.weight in ("length", "travel_time") else "length"
     algo_fn = ALGORITHMS[req.algorithm]
-    visited, path = algo_fn(G, source, target, weight)
+    # Pass max_speed_ms only to A* (other algos ignore extra kwargs via signature)
+    if req.algorithm in ('astar',):
+        max_spd = graph_max_speed_ms.get(key, 50 / 3.6)
+        visited, path = algo_fn(G, source, target, weight, max_speed_ms=max_spd)
+    else:
+        visited, path = algo_fn(G, source, target, weight)
 
     step_sample = max(1, len(visited) // 600)
     steps = [
@@ -185,6 +191,5 @@ def find_path(req: PathRequest):
         "weight": weight,
         "bounds": {"min_lat": b[0], "max_lat": b[1], "min_lng": b[2], "max_lng": b[3]},
     }
-
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
